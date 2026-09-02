@@ -515,12 +515,24 @@ fn gen_completions_uncomitted(
                     );
                     continue;
                 }
-                let (completions, _comp_res_flags) = tab_complete_glob_expansion(
+                let (mut completions, mut _comp_res_flags) = tab_complete_glob_expansion(
                     &(completion_context.word_left_of_cursor().to_string()
                         + "*"
                         + completion_context.word_right_of_cursor()),
                     word_under_cursor.as_ref(),
                 );
+
+                if completions.is_empty() && !completion_context.word_right_of_cursor().is_empty() {
+                    (completions, _comp_res_flags) = tab_complete_glob_expansion(
+                        &(completion_context.word_left_of_cursor().to_string() + "*"),
+                        word_under_cursor.as_ref(),
+                    );
+                    for c in &mut completions {
+                        c.raw_text.push_str(completion_context.word_right_of_cursor());
+                        c.full_path = None;
+                        c.flags.no_suffix_desired = true;
+                    }
+                }
 
                 log::debug!(
                     "CompType::FilenameExpansion found {} completions for pattern: {}",
@@ -544,8 +556,19 @@ fn gen_completions_uncomitted(
                     );
                     continue;
                 }
-                let (completions, _comp_res_flags) =
+                let (mut completions, mut _comp_res_flags) =
                     tab_complete_fuzzy_filename(completion_context);
+
+                if completions.is_empty() && !completion_context.word_right_of_cursor().is_empty() {
+                    let fallback_context = completion_context.with_wuc_replaced(completion_context.word_left_of_cursor());
+                    (completions, _comp_res_flags) = tab_complete_fuzzy_filename(&fallback_context);
+                    
+                    for c in &mut completions {
+                        c.raw_text.push_str(completion_context.word_right_of_cursor());
+                        c.full_path = None;
+                        c.flags.no_suffix_desired = true;
+                    }
+                }
 
                 log::debug!(
                     "CompType::FuzzyFilenameExpansion found {} completions for pattern: {}",
